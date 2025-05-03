@@ -1,12 +1,7 @@
-#pragma once
-
 #include <vector>
 #include <array>
-#include <cassert>
+#include <iostream>
 
-// Finds an optimal alphabetic (binary) Huffman code, i.e. one that preserves the ordering of the original weights
-// Implements the Garsia-Wachs algorithm: https://en.wikipedia.org/wiki/Garsia%E2%80%93Wachs_algorithm
-// Returns the code specified as a sequence of depths for each input weight
 template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_code(std::vector<T> weights) {
 	int N = int(weights.size());
 	if (N == 0) return {};
@@ -30,8 +25,6 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 			}
 
 			void rot() {
-				assert(p);
-
 				int x = d();
 				splay_node* pa = p;
 				splay_node* ch = c[!x];
@@ -84,7 +77,6 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 
 			// First, grab the 2nd child of the left side of cur
 			splay_node* a = cur->c[0];
-			assert(a);
 			while (a->c[1]) a = a->c[1];
 			if (a->c[0]) {
 				a = a->c[0];
@@ -99,8 +91,6 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 				continue;
 			}
 			a->splay_no_update(cur);
-			assert(a == cur->c[0]);
-			assert(a->c[1] && !a->c[1]->c[0] && !a->c[1]->c[1]);
 			if (cur->p && cur->value < a->value) {
 				// no merging, so we're done
 				a->update();
@@ -130,11 +120,8 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 
 			splay_node* b = a->c[0];
 			while (true) {
-				assert(b);
-				assert(!(b->max_value < a->value));
 				if (!b->c[1] || b->c[1]->max_value < a->value) {
 					if (b->value < a->value) {
-						assert(b->c[0]);
 						b = b->c[0];
 					} else {
 						break;
@@ -144,7 +131,6 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 				}
 			}
 			b->splay_no_update(a);
-			assert(b == a->c[0]);
 			if (b->c[1]) b->c[1]->p = a;
 			a->c[1] = b->c[1];
 			b->c[1] = nullptr;
@@ -155,11 +141,9 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 	}
 
 	// Reconstruct depths
-	assert(int(ch.size()) == N-1);
 	std::vector<int> res(2*N-1, -1);
 	res[2*N-2] = 0;
 	for (int i = 2*N-2; i >= N; i--) {
-		assert(res[i] != -1);
 		res[ch[i-N][0]] = res[i] + 1;
 		res[ch[i-N][1]] = res[i] + 1;
 	}
@@ -167,21 +151,14 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 	return res;
 }
 
-// Returns the lca array of length N - 1, suitable for building a Cartesian tree
-inline std::vector<int> binary_code_depths_to_lca_depths(std::vector<int> depths) {
-	int N = int(depths.size());
-	if (N == 0) return {};
-	std::vector<int> res; res.reserve(N-1);
-	std::vector<int> stk; stk.reserve(N);
-	for (int v : depths) {
-		while (!stk.empty() && stk.back() == v) {
-			stk.pop_back();
-			v--;
-		}
-		assert(stk.empty() || stk.back() < v);
-		if (v != 0) res.push_back(v-1);
-		stk.push_back(v);
+int main() {
+	int total = 0;
+	std::vector<int> weights {40,30,30,50};
+	std::vector<int> depths = alphabetic_huffman_code(weights);
+	for(int i =0; i < 4; i++) {
+		std::cout << depths[i] << ' ';
+		total += depths[i] * weights[i];
 	}
-	assert(int(stk.size()) == 1 && stk.back() == 0);
-	return res;
+	std::cout << '\n';
+	std::cout << total;
 }
