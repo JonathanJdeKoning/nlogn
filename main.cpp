@@ -1,168 +1,171 @@
-#include <vector>
-#include <array>
 #include <iostream>
+#include <vector>
+#include <limits.h>
+#include "garsia_wachs.h"
 
-template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_code(std::vector<T> weights) {
-	int N = int(weights.size());
-	if (N == 0) return {};
-	std::vector<std::array<int, 2>> ch; ch.reserve(N-1);
+using std::cout;
+using std::cin;
+using std::min;
+using std::atoi;
+using std::vector;
+vector<int> A;
+vector<int> prefix;
+vector<vector<int>> dp;
 
-	{
-		struct splay_node {
-			mutable splay_node* p; // Removed default initializer
-			std::array<splay_node*, 2> c; // Removed default initializer
-			
-			// Explicit Default Constructor Added
-			splay_node() : p(nullptr), c{nullptr, nullptr}, value{}, max_value{}, idx{} {}
+int N = 0;
+int calls = 0;
 
-			int d() const { return this == p->c[1]; }
-
-			T_sum value;
-			T_sum max_value;
-			int idx;
-
-			void update() {
-				max_value = value;
-				for (auto ch : c) { // Note: Range-based for is C++11, assumes compiler supports it even if default initializers were issue
-					if (ch && max_value < ch->max_value) max_value = ch->max_value;
-				}
-			}
-
-			void rot() {
-				int x = d();
-				splay_node* pa = p;
-				splay_node* ch = c[!x];
-
-				if (ch) ch->p = pa;
-				pa->c[x] = ch;
-
-				if (pa->p) pa->p->c[pa->d()] = this;
-				this->p = pa->p;
-
-				this->c[!x] = pa;
-				pa->p = this;
-
-				pa->update();
-			}
-
-			void splay_no_update(splay_node* top) {
-				while (p != top) {
-					if (p->p != top) {
-						if (p->d() == d()) p->rot();
-						else rot();
-					}
-					rot();
-				}
-			}
-		};
-		std::vector<splay_node> nodes(N+1);
-		for (int i = 0; i < N; i++) {
-			nodes[i].p = &nodes[i+1];
-			nodes[i+1].c[0] = &nodes[i];
-			nodes[i].value = T_sum(weights[i]);
-			nodes[i].idx = i;
+void printMemo() {
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N-1; j++) {
+			cout << dp[i][j] << " ";
 		}
-		nodes[0].update();
-		splay_node* cur = &nodes[1];
-
-		// We'll store our current state as the left spine of some splay tree.
-		// All vertices from cur to the root are precisely the vertices that may satisfy w[n-2] <= w[n]
-		// (all others provably satisfy w[x-2] > w[x] at all times),
-		// so cur is exactly the leftmost vertex that might satisfy w[n-2] <= w[n].
-		//
-		// We then check this condition, and if it does have w[n-2] <= w[n],
-		// we merge w[n-2] and w[n-1] and reinsert somewhere according to Garsia-Wachs,
-		// i.e. right after the last element of w[0:n-1] greater than or equal to it.
-		// Then, the newly inserted node is added to the candidate chain
-		// (exercise: prove that all other positions still satisfy w[x-2] > w[x]).
-
-		while (cur) {
-			// Note: cur is not necessarily updated
-
-			// First, grab the 2nd child of the left side of cur
-			splay_node* a = cur->c[0];
-			while (a->c[1]) a = a->c[1];
-			if (a->c[0]) {
-				a = a->c[0];
-				while (a->c[1]) a = a->c[1];
-			} else {
-				a = a->p;
-			}
-			if (a == cur) {
-				// size one, so we're done
-				cur->update();
-				cur = cur->p;
-				continue;
-			}
-			a->splay_no_update(cur);
-			if (cur->p && cur->value < a->value) {
-				// no merging, so we're done
-				a->update();
-				cur->update();
-				cur = cur->p;
-				continue;
-			}
-
-			// Otherwise, merge a and a->c[1]
-			{
-				int n_idx = N + int(ch.size());
-				ch.push_back({a->idx, a->c[1]->idx});
-				a->idx = n_idx;
-			}
-			a->value += a->c[1]->value;
-			a->c[1]->p = nullptr;
-			a->c[1] = nullptr;
-
-			// Now, insert a right after the first guy b which is b.v >= a.v
-			if (!a->c[0] || a->c[0]->max_value < a->value) {
-				a->c[1] = a->c[0];
-				a->c[0] = nullptr;
-				a->update();
-				// Don't recurse on a, since it has no left child
-				continue;
-			}
-
-			splay_node* b = a->c[0];
-			while (true) {
-				if (!b->c[1] || b->c[1]->max_value < a->value) {
-					if (b->value < a->value) {
-						b = b->c[0];
-					} else {
-						break;
-					}
-				} else {
-					b = b->c[1];
-				}
-			}
-			b->splay_no_update(a);
-			if (b->c[1]) b->c[1]->p = a;
-			a->c[1] = b->c[1];
-			b->c[1] = nullptr;
-			b->update();
-			cur = a;
-			continue;
-		}
+		cout << dp[i][N-1] << '\n';
 	}
-
-	// Reconstruct depths
-	std::vector<int> res(2*N-1, -1);
-	res[2*N-2] = 0;
-	for (int i = 2*N-2; i >= N; i--) {
-		res[ch[i-N][0]] = res[i] + 1;
-		res[ch[i-N][1]] = res[i] + 1;
-	}
-	res.resize(N);
-	return res;
 }
 
-int main() {
+void makePrefixArray() {
 	int total = 0;
-	std::vector<int> weights {40,30,30,50};
-	std::vector<int> depths = alphabetic_huffman_code(weights);
-	for(int i =0; i < depths.size(); i++) { // Changed loop limit to depths.size() for safety
-		std::cout << depths[i] << ' ';
-		total += depths[i] * weights[i];
+	prefix.push_back(0);
+	for (int num : A) {
+		total += num;
+		prefix.push_back(total);
 	}
-	std::cout << '\n';
-	std::cout << total << std::endl; // Added std::endl for cleaner output
+}
+
+int rangeSum(int l, int r) {
+	return prefix[r + 1] - prefix[l];
+}
+
+int minCostFuseRec(int l, int r) {
+	calls++;
+	if (l >= r) return 0;
+
+	int segmentSum = rangeSum(l, r);
+
+	int mnCost = INT_MAX;
+
+
+	for (int k = l; k < r; k++) {
+		int leftCost = minCostFuseRec(l, k);
+		int rightCost = minCostFuseRec(k + 1, r);
+
+		if (leftCost == INT_MAX || rightCost == INT_MAX) continue;
+
+		int currTotal = leftCost + rightCost + segmentSum;
+		mnCost = min(mnCost, currTotal);
+	}
+	return mnCost;
+}
+
+int minCostFuseMem(int l, int r) {
+	if (dp[l][r] != -1)
+		return dp[l][r];
+
+
+	int segmentSum = rangeSum(l, r);
+
+	int mnCost = INT_MAX;
+
+	for (int k = l; k < r; k++) {
+		int leftCost = minCostFuseMem(l, k);
+		int rightCost = minCostFuseMem(k + 1, r);
+
+		if (leftCost == INT_MAX || rightCost == INT_MAX) continue;
+
+		int currTotal = leftCost + rightCost + segmentSum;
+		mnCost = min(mnCost, currTotal);
+	}
+	dp[l][r] = mnCost;
+	return mnCost;
+}
+
+int minCostFuseIter() {
+	for (int n = 2; n <= N; n++) {
+		for (int i = 0; i <= N - n; i++) {
+			
+
+			int j = i + n - 1;
+			int segmentSum = rangeSum(i, j);
+			
+			dp[i][j] = INT_MAX;
+
+			for (int k = i; k < j; k++) {
+				int costA = dp[i][k];
+				int costB = dp[k + 1][j];
+
+				if (costA == INT_MAX or costB == INT_MAX) continue;
+
+				int totalCost = costA + costB + segmentSum;
+				dp[i][j] = min(dp[i][j], totalCost);
+
+
+			}
+
+		}
+	}
+	return dp[0][N - 1];
+
+}
+void fillMatrix(int N) {
+	for (int i = 0; i < N;i++) {
+		vector<int> newRow;
+		for (int j = 0; j < N; j++) {
+
+			if (i == j)
+				newRow.push_back(0);
+			else
+				newRow.push_back(-1);
+		}
+		dp.push_back(newRow);
+	}
+}
+
+
+int main(int argc, char* argv[]) {
+	char op = argv[1][0];
+	N = atoi(argv[2]);
+        int total = 0;
+	for (int i = 0; i < N; i++)
+		A.push_back(atoi(argv[3 + i]));
+
+	makePrefixArray();
+	fillMatrix(N);
+
+	switch (op) {
+	case 'R':
+		cout << minCostFuseRec(0, N-1) << '\n';
+		break;
+	case 'M':
+		cout << minCostFuseMem(0, N-1) << '\n';
+		break;
+	case 'D':
+		cout << minCostFuseIter() << '\n';
+		break;
+
+        case 'J':
+                {
+                    vector<int> depths = alphabetic_huffman_code(A);
+                    for (int i = 0; i < depths.size(); i++) {
+                        total += depths[i] * A[i];
+                    }
+                    cout << total << '\n';
+                    break;
+                }
+        case 'r':
+		minCostFuseRec(0, N - 1);
+		cout << calls << '\n';
+		break;
+	case 'm':
+		minCostFuseMem(0, N - 1);
+		printMemo();
+		break;
+	case 'd':
+		minCostFuseIter();
+		printMemo();
+		break;
+	}
+
+
+
 }
