@@ -9,8 +9,12 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 
 	{
 		struct splay_node {
-			mutable splay_node* p = nullptr;
-			std::array<splay_node*, 2> c{nullptr, nullptr};
+			mutable splay_node* p; // Removed default initializer
+			std::array<splay_node*, 2> c; // Removed default initializer
+			
+			// Explicit Default Constructor Added
+			splay_node() : p(nullptr), c{nullptr, nullptr}, value{}, max_value{}, idx{} {}
+
 			int d() const { return this == p->c[1]; }
 
 			T_sum value;
@@ -19,7 +23,7 @@ template <typename T, typename T_sum = T> std::vector<int> alphabetic_huffman_co
 
 			void update() {
 				max_value = value;
-				for (auto ch : c) {
+				for (auto ch : c) { // Note: Range-based for is C++11, assumes compiler supports it even if default initializers were issue
 					if (ch && max_value < ch->max_value) max_value = ch->max_value;
 				}
 			}
@@ -155,10 +159,10 @@ int main() {
 	int total = 0;
 	std::vector<int> weights {40,30,30,50};
 	std::vector<int> depths = alphabetic_huffman_code(weights);
-	for(int i =0; i < 4; i++) {
+	for(int i =0; i < depths.size(); i++) { // Changed loop limit to depths.size() for safety
 		std::cout << depths[i] << ' ';
 		total += depths[i] * weights[i];
 	}
 	std::cout << '\n';
-	std::cout << total;
+	std::cout << total << std::endl; // Added std::endl for cleaner output
 }
